@@ -37,13 +37,6 @@ namespace playnite_json
 
                 foreach (var game in games)
                 {
-                    // Handle cover image if needed
-                    // string coverImagePath = string.Empty;
-                    // if (!string.IsNullOrEmpty(game.CoverImage))
-                    // {
-                    //     coverImagePath = Path.Combine(PlayniteApi.Paths.ImagesPath, game.CoverImage);
-                    // }
-
                     // Get platform name
                     var platformName = string.Empty;
                     if (game.PlatformIds?.Any() == true)
@@ -59,15 +52,22 @@ namespace playnite_json
                         sourceName = game.Source.Name; // Assuming Source has a Name property
                     }
 
+                    // Extract the community hub URL from game links
+                    var communityHubUrl = game.Links?.FirstOrDefault(link => link.Name.Contains("Community"))?.Url;
+
                     gameList.Add(new GameInfo
                     {
+                        Id = game.Id, // Unique game ID
                         Name = game.Name,
+                        Description = game.Description, // Game description
                         Platform = platformName,
                         Playtime = (long?)game.Playtime,
                         LastPlayed = game.LastActivity,
                         Genres = game.Genres?.Select(g => g.Name).ToList(),
-                        Sources = sourceName, // Updated property name
-                                              // CoverImagePath = coverImagePath
+                        Sources = sourceName,
+                        ReleaseDate = game.ReleaseDate?.Date, // Convert Playnite's ReleaseDate to DateTime?
+                        CommunityHubUrl = communityHubUrl, // Use the first link that contains "Community"
+                        Added = game.Added // Date game was added to the Playnite library
                     });
                 }
 
@@ -86,16 +86,19 @@ namespace playnite_json
         }
 
 
-
         private class GameInfo
         {
+            public Guid Id { get; set; } // Unique game ID (NEW)
             public string Name { get; set; }
+            public string Description { get; set; } // Game description (NEW)
             public string Platform { get; set; }
             public long? Playtime { get; set; }
             public DateTime? LastPlayed { get; set; }
             public List<string> Genres { get; set; }
             public string Sources { get; internal set; }
-            // public string CoverImagePath { get; set; } // Uncomment if you decide to include cover images
+            public DateTime? ReleaseDate { get; set; } // Release date (NEW)
+            public string CommunityHubUrl { get; set; } // Community hub URL (NEW)
+            public DateTime? Added { get; set; } // Date game was added to the library (NEW)
         }
     }
 }
