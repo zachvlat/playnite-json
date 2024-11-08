@@ -14,6 +14,7 @@ namespace playnite_json
     public class ExportGamesPlugin : GenericPlugin
     {
         private readonly IGameDatabase _gameDatabase;
+        private readonly Guid steamPluginId = Guid.Parse("cb91dfc9-b977-43bf-8e70-55f46e410fab");
 
         public ExportGamesPlugin(IPlayniteAPI api) : base(api)
         {
@@ -49,7 +50,22 @@ namespace playnite_json
                     var sourceName = string.Empty;
                     if (game.Source != null)
                     {
-                        sourceName = game.Source.Name; // Assuming Source has a Name property
+                        sourceName = game.Source.Name;
+                    }
+
+                    // Check if the game is from Steam and get Steam ID
+                    string steamId = null;
+                    string coverArtUrl;
+                    if (game.PluginId == steamPluginId) // Compare with Steam plugin ID
+                    {
+                        steamId = game.GameId;
+                        // Construct Steam cover art URL if Steam ID is available
+                        coverArtUrl = $"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{steamId}/header.jpg";
+                    }
+                    else
+                    {
+                        // Use placeholder image for non-Steam games or missing Steam ID
+                        coverArtUrl = "https://placehold.co/60x60.svg";
                     }
 
                     // Extract the community hub URL from game links
@@ -67,7 +83,9 @@ namespace playnite_json
                         Sources = sourceName,
                         ReleaseDate = game.ReleaseDate?.Date, // Convert Playnite's ReleaseDate to DateTime?
                         CommunityHubUrl = communityHubUrl, // Use the first link that contains "Community"
-                        Added = game.Added // Date game was added to the Playnite library
+                        Added = game.Added, // Date game was added to the Playnite library
+                        SteamId = steamId, // New field for Steam ID
+                        CoverArtUrl = coverArtUrl // New field for Cover Art URL
                     });
                 }
 
@@ -85,20 +103,21 @@ namespace playnite_json
             }
         }
 
-
         private class GameInfo
         {
-            public Guid Id { get; set; } // Unique game ID (NEW)
+            public Guid Id { get; set; } // Unique game ID
             public string Name { get; set; }
-            public string Description { get; set; } // Game description (NEW)
+            public string Description { get; set; } // Game description
             public string Platform { get; set; }
             public long? Playtime { get; set; }
             public DateTime? LastPlayed { get; set; }
             public List<string> Genres { get; set; }
             public string Sources { get; internal set; }
-            public DateTime? ReleaseDate { get; set; } // Release date (NEW)
-            public string CommunityHubUrl { get; set; } // Community hub URL (NEW)
-            public DateTime? Added { get; set; } // Date game was added to the library (NEW)
+            public DateTime? ReleaseDate { get; set; } // Release date
+            public string CommunityHubUrl { get; set; } // Community hub URL
+            public DateTime? Added { get; set; } // Date game was added to the library
+            public string SteamId { get; set; } // New field for Steam ID
+            public string CoverArtUrl { get; set; } // New field for Cover Art URL
         }
     }
 }
