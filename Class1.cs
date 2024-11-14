@@ -60,7 +60,7 @@ namespace playnite_json
                     {
                         steamId = game.GameId;
                         // Construct Steam cover art URL if Steam ID is available
-                        coverArtUrl = $"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{steamId}/header.jpg";
+                        coverArtUrl = $"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{steamId}/library_600x900.jpg";
                     }
                     else
                     {
@@ -73,19 +73,19 @@ namespace playnite_json
 
                     gameList.Add(new GameInfo
                     {
-                        Id = game.Id, // Unique game ID
+                        Id = game.Id,
                         Name = game.Name,
-                        Description = game.Description, // Game description
+                        Description = game.Description,
                         Platform = platformName,
                         Playtime = (long?)game.Playtime,
                         LastPlayed = game.LastActivity,
                         Genres = game.Genres?.Select(g => g.Name).ToList(),
                         Sources = sourceName,
-                        ReleaseDate = game.ReleaseDate?.Date, // Convert Playnite's ReleaseDate to DateTime?
-                        CommunityHubUrl = communityHubUrl, // Use the first link that contains "Community"
-                        Added = game.Added, // Date game was added to the Playnite library
-                        SteamId = steamId, // New field for Steam ID
-                        CoverArtUrl = coverArtUrl // New field for Cover Art URL
+                        ReleaseDate = game.ReleaseDate?.Date,
+                        CommunityHubUrl = communityHubUrl,
+                        Added = game.Added,
+                        SteamId = steamId,
+                        CoverArtUrl = coverArtUrl
                     });
                 }
 
@@ -105,19 +105,19 @@ namespace playnite_json
 
         private class GameInfo
         {
-            public Guid Id { get; set; } // Unique game ID
+            public Guid Id { get; set; }
             public string Name { get; set; }
-            public string Description { get; set; } // Game description
+            public string Description { get; set; }
             public string Platform { get; set; }
             public long? Playtime { get; set; }
             public DateTime? LastPlayed { get; set; }
             public List<string> Genres { get; set; }
             public string Sources { get; internal set; }
-            public DateTime? ReleaseDate { get; set; } // Release date
-            public string CommunityHubUrl { get; set; } // Community hub URL
-            public DateTime? Added { get; set; } // Date game was added to the library
-            public string SteamId { get; set; } // New field for Steam ID
-            public string CoverArtUrl { get; set; } // New field for Cover Art URL
+            public DateTime? ReleaseDate { get; set; }
+            public string CommunityHubUrl { get; set; }
+            public DateTime? Added { get; set; }
+            public string SteamId { get; set; }
+            public string CoverArtUrl { get; set; }
         }
     }
 }
