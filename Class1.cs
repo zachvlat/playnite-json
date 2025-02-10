@@ -6,7 +6,10 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
 using Playnite.SDK.Events;
+using System.Net;
+using System.Text;
 using System.Runtime.InteropServices;
+using System.Windows;
 
 namespace playnite_json
 {
@@ -15,6 +18,11 @@ namespace playnite_json
     {
         private readonly IGameDatabase _gameDatabase;
         private readonly Guid steamPluginId = Guid.Parse("cb91dfc9-b977-43bf-8e70-55f46e410fab");
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
+        private const string ClientId = "un7v7t5r1fv7mo9fpsl5rtvmjhjttv";
+        private const string ClientSecret = "de80exz3avpf7tiet24kchis7tan5k";
+        private string _igdbAccessToken;
 
         public ExportGamesPlugin(IPlayniteAPI api) : base(api)
         {
@@ -26,49 +34,61 @@ namespace playnite_json
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             base.OnApplicationStarted(args);
-            ExportGamesToJson();
+            _igdbAccessToken = GetIgdbAccessToken();
+
+            // Ask for user confirmation
+            var result = PlayniteApi.Dialogs.ShowMessage(
+                "Do you want to export your game library?",
+                "Confirm Export",
+                MessageBoxButton.YesNo
+            );
+
+            if (result != MessageBoxResult.Yes)
+            {
+                Logger.Info("Game export canceled by user.");
+                return;
+            }
+
+            // Show progress UI while exporting games
+            PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
+            {
+                progress.Text = "Exporting game library...";
+                ExportGamesToJson(progress);
+            }, new GlobalProgressOptions("Exporting Games", true));
         }
 
-        private void ExportGamesToJson()
+        private void ExportGamesToJson(GlobalProgressActionArgs progress)
         {
             try
             {
                 var games = _gameDatabase.Games;
                 var gameList = new List<GameInfo>();
+                int totalGames = games.Count();
+                int processed = 0;
 
                 foreach (var game in games)
                 {
-                    // Get platform name
-                    var platformName = string.Empty;
-                    if (game.PlatformIds?.Any() == true)
+                    if (progress.CancelToken.IsCancellationRequested)
                     {
-                        var platform = _gameDatabase.Platforms.Get(game.PlatformIds.First());
-                        platformName = platform?.Name ?? "Unknown";
+                        Logger.Warn("Game export canceled by user.");
+                        return;
                     }
 
-                    // Get source/library name
-                    var sourceName = string.Empty;
-                    if (game.Source != null)
-                    {
-                        sourceName = game.Source.Name;
-                    }
+                    processed++;
+                    progress.CurrentProgressValue = (processed / (double)totalGames) * 100;
+                    progress.Text = $"Exporting {processed}/{totalGames}: {game.Name}";
 
-                    // Check if the game is from Steam and get Steam ID
-                    string steamId = null;
-                    string coverArtUrl;
-                    if (game.PluginId == steamPluginId) // Compare with Steam plugin ID
-                    {
-                        steamId = game.GameId;
-                        // Construct Steam cover art URL if Steam ID is available
-                        coverArtUrl = $"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{steamId}/library_600x900.jpg";
-                    }
-                    else
-                    {
-                        // Use placeholder image for non-Steam games or missing Steam ID
-                        coverArtUrl = "https://placehold.co/60x60.svg";
-                    }
+                    var platformName = game.PlatformIds?.Any() == true
+                        ? _gameDatabase.Platforms.Get(game.PlatformIds.First())?.Name ?? "Unknown"
+                        : "Unknown";
 
-                    // Extract the community hub URL from game links
+                    var sourceName = game.Source?.Name ?? "Unknown";
+                    string steamId = game.PluginId == steamPluginId ? game.GameId : null;
+
+                    string coverArtUrl = GetIgdbCoverUrl(game.Name) ??
+                                         (steamId != null ? $"https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{steamId}/library_600x900.jpg"
+                                                          : "https://placehold.co/60x60.svg");
+
                     var communityHubUrl = game.Links?.FirstOrDefault(link => link.Name.Contains("Community"))?.Url;
 
                     gameList.Add(new GameInfo
@@ -89,18 +109,77 @@ namespace playnite_json
                     });
                 }
 
-                // Serialize to JSON and write to file
                 string json = JsonConvert.SerializeObject(gameList, Formatting.Indented);
                 string filePath = Path.Combine(PlayniteApi.Paths.ConfigurationPath, "games_export.json");
                 File.WriteAllText(filePath, json);
 
-                // Notify user
-                PlayniteApi.Dialogs.ShowMessage($"Games exported to {filePath}");
+                PlayniteApi.Dialogs.ShowMessage($"Export complete! {processed} games saved to:\n{filePath}");
             }
             catch (Exception ex)
             {
-                PlayniteApi.Dialogs.ShowErrorMessage($"An error occurred: {ex.Message}", "Error");
+                Logger.Error(ex, "Failed to export games.");
+                PlayniteApi.Dialogs.ShowErrorMessage($"An error occurred: {ex.Message}", "Export Error");
             }
+        }
+
+        private string GetIgdbAccessToken()
+        {
+            try
+            {
+                using (var client = new WebClient())
+                {
+                    var values = new System.Collections.Specialized.NameValueCollection
+                    {
+                        { "client_id", ClientId },
+                        { "client_secret", ClientSecret },
+                        { "grant_type", "client_credentials" }
+                    };
+
+                    var response = client.UploadValues("https://id.twitch.tv/oauth2/token", values);
+                    var responseString = Encoding.Default.GetString(response);
+                    var json = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseString);
+
+                    return json["access_token"];
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get IGDB access token.");
+                PlayniteApi.Dialogs.ShowErrorMessage($"Failed to get IGDB token: {ex.Message}", "IGDB Error");
+                return null;
+            }
+        }
+
+        private string GetIgdbCoverUrl(string gameName)
+        {
+            if (string.IsNullOrEmpty(_igdbAccessToken))
+                return null;
+
+            try
+            {
+                using (var client = new WebClient())
+                {
+                    client.Headers.Add("Client-ID", ClientId);
+                    client.Headers.Add("Authorization", $"Bearer {_igdbAccessToken}");
+                    client.Headers.Add("Accept", "application/json");
+
+                    string query = $"search \"{gameName}\"; fields cover.image_id; limit 1;";
+                    var response = client.UploadString("https://api.igdb.com/v4/games", query);
+                    var games = JsonConvert.DeserializeObject<List<dynamic>>(response);
+
+                    if (games.Count > 0 && games[0].cover != null)
+                    {
+                        string imageId = games[0].cover.image_id.ToString();
+                        return $"https://images.igdb.com/igdb/image/upload/t_cover_big/{imageId}.jpg";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Failed to fetch IGDB cover for {gameName}.");
+            }
+
+            return null;
         }
 
         private class GameInfo
@@ -112,7 +191,7 @@ namespace playnite_json
             public long? Playtime { get; set; }
             public DateTime? LastPlayed { get; set; }
             public List<string> Genres { get; set; }
-            public string Sources { get; internal set; }
+            public string Sources { get; set; }
             public DateTime? ReleaseDate { get; set; }
             public string CommunityHubUrl { get; set; }
             public DateTime? Added { get; set; }
