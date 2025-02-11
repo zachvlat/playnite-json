@@ -10,6 +10,8 @@ using System.Net;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Runtime;
+using Playnite.SDK.Models;
 
 namespace playnite_json
 {
@@ -34,34 +36,56 @@ namespace playnite_json
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             base.OnApplicationStarted(args);
+
+            //// Ask for user confirmation
+            //var result = PlayniteApi.Dialogs.ShowMessage(
+            //    "Do you want to export your game library?",
+            //    "Confirm Export",
+            //    MessageBoxButton.YesNo
+            //);
+
+            //if (result != MessageBoxResult.Yes)
+            //{
+            //    Logger.Info("Game export canceled by user.");
+            //    return;
+            //}
+
+            //ExportGames(_gameDatabase.Games);
+        }
+
+        private void ExportGames(List<Game> games)
+        {
             _igdbAccessToken = GetIgdbAccessToken();
-
-            // Ask for user confirmation
-            var result = PlayniteApi.Dialogs.ShowMessage(
-                "Do you want to export your game library?",
-                "Confirm Export",
-                MessageBoxButton.YesNo
-            );
-
-            if (result != MessageBoxResult.Yes)
-            {
-                Logger.Info("Game export canceled by user.");
-                return;
-            }
 
             // Show progress UI while exporting games
             PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
             {
                 progress.Text = "Exporting game library...";
-                ExportGamesToJson(progress);
+                ExportGamesToJson(progress, games);
             }, new GlobalProgressOptions("Exporting Games", true));
         }
 
-        private void ExportGamesToJson(GlobalProgressActionArgs progress)
+        private static readonly string _menuSection = "Json Exporter";
+        public override IEnumerable<GameMenuItem> GetGameMenuItems(GetGameMenuItemsArgs args)
+        {
+            return new List<GameMenuItem>
+                {
+                    new GameMenuItem
+                    {
+                        Description = "Export",
+                        MenuSection = $"{_menuSection}",                        
+                        Action = a => {
+                           ExportGames(args.Games);
+                        }
+                    }
+
+                };
+        }
+
+        private void ExportGamesToJson(GlobalProgressActionArgs progress, List<Game> games)
         {
             try
-            {
-                var games = _gameDatabase.Games;
+            {                
                 var gameList = new List<GameInfo>();
                 int totalGames = games.Count();
                 int processed = 0;
@@ -110,7 +134,8 @@ namespace playnite_json
                 }
 
                 string json = JsonConvert.SerializeObject(gameList, Formatting.Indented);
-                string filePath = Path.Combine(PlayniteApi.Paths.ConfigurationPath, "games_export.json");
+                string path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                string filePath = Path.Combine(path, "games_export.json");
                 File.WriteAllText(filePath, json);
 
                 PlayniteApi.Dialogs.ShowMessage($"Export complete! {processed} games saved to:\n{filePath}");
@@ -163,6 +188,8 @@ namespace playnite_json
                     client.Headers.Add("Authorization", $"Bearer {_igdbAccessToken}");
                     client.Headers.Add("Accept", "application/json");
 
+                    gameName = RemoveEditions(gameName);
+
                     string query = $"search \"{gameName}\"; fields cover.image_id; limit 1;";
                     var response = client.UploadString("https://api.igdb.com/v4/games", query);
                     var games = JsonConvert.DeserializeObject<List<dynamic>>(response);
@@ -180,6 +207,65 @@ namespace playnite_json
             }
 
             return null;
+        }
+
+        public static string RemoveEditions(string name)
+        {
+            string cleanName = name.Replace(": Windows Edition", "");
+            cleanName = cleanName.Replace(" (Windows Version)", "");
+            cleanName = cleanName.Replace(" - Standard Edition", "");
+            cleanName = cleanName.Replace(" - Ultimate Edition", "");
+            cleanName = cleanName.Replace(" - Windows Edition", "");
+            cleanName = cleanName.Replace(" - Limited Edition", "");
+            cleanName = cleanName.Replace(" - Gold Edition", "");
+            cleanName = cleanName.Replace(" - Special Edition", "");
+            cleanName = cleanName.Replace(" - Definitive Edition", "");
+            cleanName = cleanName.Replace(" - Collector's Edition", "");
+            cleanName = cleanName.Replace(" - Base Game", "");
+            cleanName = cleanName.Replace(" - PC Edition", "");
+            cleanName = cleanName.Replace(" - Complete Edition", "");
+            cleanName = cleanName.Replace(" - Complete Bundle", "");
+            cleanName = cleanName.Replace(" - Game of the Year Edition", "");
+            cleanName = cleanName.Replace(" - Nintendo Switch Edition", "");
+
+            cleanName = cleanName.Replace(": Complete Edition", "");
+            cleanName = cleanName.Replace(": Challenger Edition", "");
+            cleanName = cleanName.Replace(": The Complete Edition", "");
+            cleanName = cleanName.Replace(" Game of the Year Edition", "");
+            cleanName = cleanName.Replace(" GAME OF THE YEAR EDITION", "");
+
+            cleanName = cleanName.Replace(" Standard Edition", "");
+            cleanName = cleanName.Replace(" Ultimate Edition", "");
+            cleanName = cleanName.Replace(" Windows Edition", "");
+            cleanName = cleanName.Replace(" Limited Edition", "");
+            cleanName = cleanName.Replace(" Gold Edition", "");
+            cleanName = cleanName.Replace(" Special Edition", "");
+            cleanName = cleanName.Replace(" Definitive Edition", "");
+            cleanName = cleanName.Replace(" Collector's Edition", "");
+            cleanName = cleanName.Replace(" Base Game", "");
+            cleanName = cleanName.Replace(" PC Edition", "");
+            cleanName = cleanName.Replace(" Complete Edition", "");
+            cleanName = cleanName.Replace(" Complete Bundle", "");
+            cleanName = cleanName.Replace(" Classic Edition", "");
+            cleanName = cleanName.Replace(" Console Edition", "");
+            cleanName = cleanName.Replace(" Enhanced Edition", "");
+            cleanName = cleanName.Replace(" Deluxe Edition", "");
+            cleanName = cleanName.Replace(" Legacy Edition", "");
+            cleanName = cleanName.Replace(" Challenger Edition", "");
+            cleanName = cleanName.Replace(" Collector's Edition", "");
+            cleanName = cleanName.Replace(" (Windows Edition)", "");
+            cleanName = cleanName.Replace(" for Nintendo Switch", "");
+            cleanName = cleanName.Replace(" Digital Bonus Edition", "");
+            cleanName = cleanName.Replace(" (Game Preview)", "");
+            cleanName = cleanName.Replace(" PS4 & PS5", "");
+
+            // complete                        
+            cleanName = cleanName.Replace(" Console", "");
+            cleanName = cleanName.Replace(" for Windows", "");
+            cleanName = cleanName.Replace(" Collection", "");
+            cleanName = cleanName.Replace(" Edition", "");
+
+            return cleanName;
         }
 
         private class GameInfo

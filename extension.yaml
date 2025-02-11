@@ -1,0 +1,9 @@
+Id: PlayniteJsonExporter
+Name: Playnite Json Exporter
+Author: zachvlat
+Version: 3.8.0
+Module: PlayniteJsonExporter.dll
+Type: GenericPlugin
+Links:
+  - Name: Website
+    Url: https://github.com/zachvlat
