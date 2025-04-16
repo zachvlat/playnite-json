@@ -1,11 +1,11 @@
-﻿using Playnite.SDK;
+using Playnite.SDK;
 using Playnite.SDK.Plugins;
+using Playnite.SDK.Events;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
-using Playnite.SDK.Events;
 using System.Net;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -36,7 +36,6 @@ namespace playnite_json
             base.OnApplicationStarted(args);
             _igdbAccessToken = GetIgdbAccessToken();
 
-            // Ask for user confirmation
             var result = PlayniteApi.Dialogs.ShowMessage(
                 "Do you want to export your game library?",
                 "Confirm Export",
@@ -49,7 +48,6 @@ namespace playnite_json
                 return;
             }
 
-            // Show progress UI while exporting games
             PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
             {
                 progress.Text = "Exporting game library...";
@@ -61,10 +59,12 @@ namespace playnite_json
         {
             try
             {
-                string filePath = Path.Combine(PlayniteApi.Paths.ConfigurationPath, "games_export.json");
+                // Use Playnite executable folder
+                string filePath = Path.Combine(PlayniteApi.Paths.ApplicationPath, "games_export.json");
+                Logger.Info($"Export file path: {filePath}");
+
                 List<GameInfo> existingGames = null;
 
-                // Check if the file exists, read it if it does
                 if (File.Exists(filePath))
                 {
                     try
@@ -149,14 +149,13 @@ namespace playnite_json
                     }
                 }
 
-                // If no changes detected, skip saving
                 if (!changesDetected)
                 {
                     Logger.Info("No changes detected, skipping save.");
+                    PlayniteApi.Dialogs.ShowMessage($"No changes detected — existing export is up to date.\nLocation: {filePath}");
                     return;
                 }
 
-                // Save updated list to JSON file
                 string json = JsonConvert.SerializeObject(gameList, Formatting.Indented);
                 File.WriteAllText(filePath, json);
 
@@ -168,7 +167,6 @@ namespace playnite_json
                 PlayniteApi.Dialogs.ShowErrorMessage($"An error occurred: {ex.Message}", "Export Error");
             }
         }
-
 
         private string GetIgdbAccessToken()
         {
