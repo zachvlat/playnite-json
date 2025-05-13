@@ -20,8 +20,8 @@ namespace playnite_json
         private readonly Guid steamPluginId = Guid.Parse("cb91dfc9-b977-43bf-8e70-55f46e410fab");
         private static readonly ILogger Logger = LogManager.GetLogger();
 
-        private const string ClientId = ".ENV";
-        private const string ClientSecret = ".ENV";
+        private const string ClientId = "ENV";
+        private const string ClientSecret = "ENV";
         private string _igdbAccessToken;
 
         public ExportGamesPlugin(IPlayniteAPI api) : base(api)
@@ -59,7 +59,6 @@ namespace playnite_json
         {
             try
             {
-                // Use Playnite executable folder
                 string filePath = Path.Combine(PlayniteApi.Paths.ApplicationPath, "games_export.json");
                 Logger.Info($"Export file path: {filePath}");
 
@@ -124,7 +123,10 @@ namespace playnite_json
                         CommunityHubUrl = communityHubUrl,
                         Added = game.Added,
                         SteamId = steamId,
-                        CoverArtUrl = coverArtUrl
+                        CoverArtUrl = coverArtUrl,
+                        CommunityScore = game.CommunityScore,
+                        CriticScore = game.CriticScore,
+                        UserScore = game.UserScore
                     };
 
                     var existingGame = existingGames?.FirstOrDefault(g => g.Id == newGame.Id);
@@ -243,6 +245,9 @@ namespace playnite_json
             public DateTime? Added { get; set; }
             public string SteamId { get; set; }
             public string CoverArtUrl { get; set; }
+            public float? CommunityScore { get; set; }
+            public int? CriticScore { get; set; }
+            public float? UserScore { get; set; }
         }
     }
 }
