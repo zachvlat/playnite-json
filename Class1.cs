@@ -10,6 +10,7 @@ using System.Net;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Threading.Tasks;
 
 namespace playnite_json
 {
@@ -34,7 +35,6 @@ namespace playnite_json
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             base.OnApplicationStarted(args);
-            _igdbAccessToken = GetIgdbAccessToken();
 
             var result = PlayniteApi.Dialogs.ShowMessage(
                 "Do you want to export your game library?",
@@ -48,14 +48,20 @@ namespace playnite_json
                 return;
             }
 
-            PlayniteApi.Dialogs.ActivateGlobalProgress(progress =>
+            PlayniteApi.Notifications.Add(new NotificationMessage(
+                "playnite-json-export-started",
+                "Game export started in the background.",
+                NotificationType.Info
+            ));
+
+            Task.Run(() =>
             {
-                progress.Text = "Exporting game library...";
-                ExportGamesToJson(progress);
-            }, new GlobalProgressOptions("Exporting Games", true));
+                _igdbAccessToken = GetIgdbAccessToken();
+                ExportGamesToJson();
+            });
         }
 
-        private void ExportGamesToJson(GlobalProgressActionArgs progress)
+        private void ExportGamesToJson()
         {
             try
             {
@@ -86,15 +92,7 @@ namespace playnite_json
 
                 foreach (var game in games)
                 {
-                    if (progress.CancelToken.IsCancellationRequested)
-                    {
-                        Logger.Warn("Game export canceled by user.");
-                        return;
-                    }
-
                     processed++;
-                    progress.CurrentProgressValue = (processed / (double)totalGames) * 100;
-                    progress.Text = $"Processing {processed}/{totalGames}: {game.Name}";
 
                     var platformName = game.PlatformIds?.Any() == true
                         ? _gameDatabase.Platforms.Get(game.PlatformIds.First())?.Name ?? "Unknown"
@@ -154,19 +152,31 @@ namespace playnite_json
                 if (!changesDetected)
                 {
                     Logger.Info("No changes detected, skipping save.");
-                    PlayniteApi.Dialogs.ShowMessage($"No changes detected — existing export is up to date.\nLocation: {filePath}");
+                    PlayniteApi.Notifications.Add(new NotificationMessage(
+                        "playnite-json-no-changes",
+                        $"No changes detected — existing export is up to date. Location: {filePath}",
+                        NotificationType.Info
+                    ));
                     return;
                 }
 
                 string json = JsonConvert.SerializeObject(gameList, Formatting.Indented);
                 File.WriteAllText(filePath, json);
 
-                PlayniteApi.Dialogs.ShowMessage($"Export complete! {processed} games saved to:\n{filePath}");
+                PlayniteApi.Notifications.Add(new NotificationMessage(
+                    "playnite-json-export-complete",
+                    $"Export complete! {processed} games saved to: {filePath}",
+                    NotificationType.Info
+                ));
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to export games.");
-                PlayniteApi.Dialogs.ShowErrorMessage($"An error occurred: {ex.Message}", "Export Error");
+                PlayniteApi.Notifications.Add(new NotificationMessage(
+                    "playnite-json-export-error",
+                    $"An error occurred: {ex.Message}",
+                    NotificationType.Error
+                ));
             }
         }
 
@@ -193,7 +203,11 @@ namespace playnite_json
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to get IGDB access token.");
-                PlayniteApi.Dialogs.ShowErrorMessage($"Failed to get IGDB token: {ex.Message}", "IGDB Error");
+                PlayniteApi.Notifications.Add(new NotificationMessage(
+                    "playnite-json-igdb-error",
+                    $"Failed to get IGDB token: {ex.Message}",
+                    NotificationType.Error
+                ));
                 return null;
             }
         }
